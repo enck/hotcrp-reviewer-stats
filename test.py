@@ -12,28 +12,50 @@ class Reviewer:
     def __init__(self, first_name, last_name, email):
         self.full_name = '{} {}'.format(first_name, last_name)
         self.email = email
-        self.r1_reviews = {} # map of paper -> Review object
-        self.r2_reviews = {} # map of paper -> Review object
+        self.reviews = {} # map of paper -> Review object
+        self.reviews = {} # map of paper -> Review object
 
     def add_r1_review(self, paper, timestamp):
-        if paper in self.r1_reviews:
-            self.r1_reviews[paper].add_update(timestamp)
-            print("R1.add_update({}) = {}".format(self.email, paper))
+        if paper in self.reviews:
+            self.reviews[paper].add_update(timestamp)
         else:
-            self.r1_reviews[paper] = self.Review(paper, True, timestamp, R1_DEADLINE)
-            print("R1.add({}) = {}".format(self.email, paper))
+            self.reviews[paper] = self.Review(paper, True, timestamp, R1_DEADLINE)
 
     def del_r1_review(self, paper, timestamp):
-        if paper in self.r1_reviews:
-            self.r1_reviews[paper].del_update(timestamp)
-            print("R1.del_update({}) = {}".format(self.email, paper))
+        if paper in self.reviews:
+            self.reviews[paper].del_update(timestamp)
         else:
-            self.r1_reviews[paper] = self.Review(paper, False, timestamp, R1_DEADLINE)
-            print("R1.del({}) = {}".format(self.email, paper))
+            self.reviews[paper] = self.Review(paper, False, timestamp, R1_DEADLINE)
+
+    def add_r2_review(self, paper, timestamp):
+        if paper in self.reviews:
+            self.reviews[paper].add_update(timestamp)
+        else:
+            self.reviews[paper] = self.Review(paper, True, timestamp, R2_DEADLINE)
+
+    def del_r2_review(self, paper, timestamp):
+        if paper in self.reviews:
+            self.reviews[paper].del_update(timestamp)
+        else:
+            self.reviews[paper] = self.Review(paper, False, timestamp, R2_DEADLINE)
+
+    def paper_assignment(self):
+        papers = [paper for paper in self.reviews if self.reviews[paper].is_assigned() ]
+        return sorted(papers, key=int)
+
+    def review_submitted(self, paper, timestamp):
+        if paper in self.paper_assignment():
+            self.reviews[paper].submitted(timestamp)
+        else:
+            print("Warning: paper #{} submitted for {} <{}>, but never assigned".format(paper, self.full_name, self.email))
+            papers = ', '.join(self.paper_assignment())
+            print("->{}".format(papers))
+
 
     def print_reviewer_info(self):
         # email, full_name
-        print('{},{}'.format(self.email, self.full_name))
+        papers = ', '.join(self.paper_assignment())
+        print('{},{},"{}"'.format(self.email, self.full_name, papers))
 
     class Review:
         def __init__(self, paper, assigned, time_assigned, time_due):
@@ -52,6 +74,16 @@ class Reviewer:
             if self.time_assigned < timestamp:
                 self.assigned = false
                 self.time_assigned = timestamp
+
+        def is_assigned(self):
+            return self.assigned
+
+        def submitted(self, timestamp):
+            # Only keep the earliest time it the paper was submitted
+            if self.time_submitted == None:
+                self.time_submitted = timestamp
+            elif self.time_submitted > timestamp:
+                self.time_submitted = timestamp
 
 def load_reviewers(filename):
     reviewers = {} # Map reviewer email to Reviewer object
@@ -93,7 +125,10 @@ def process_log(reviewers, logfile):
 
             elif action == "Assigned primary review (round R2)":
                 # add the assigned review to reviewer
-                continue
+                if affected_email in reviewers:
+                    reviewers[affected_email].add_r2_review(paper, timestamp)
+                else:
+                    print("Warning: could not find {}".format(affected_email))
 
             elif action == "Removed primary review (round R1)":
                 # remove the assigned review to reviewer
@@ -104,34 +139,39 @@ def process_log(reviewers, logfile):
 
             elif action == "Removed primary review (round R2)":
                 # remove the assigned review to reviewer
-                continue
+                if affected_email in reviewers:
+                    reviewers[affected_email].del_r2_review(paper, timestamp)
+                else:
+                    print("Warning: could not find {}".format(affected_email))
 
             elif re.match(r"^Review \d+ submitted: ", action):
                 # mark review as submitted
-                continue
+                if email in reviewers:
+                    reviewers[email].review_submitted(paper, timestamp)
+                else:
+                    print("Warning: could not find {}".format(affected_email))
 
             elif re.match(r"^Review \d+ edited draft: ", action):
                 # mark review activity
-                continue
+                pass
 
             elif re.match(r"^Comment \d+ submitted", action):
                 # mark comment activity
-                continue
+                pass
 
             elif re.match(r"^Comment \d+ edited draft:", action):
                 # mark comment activity?
-                continue
+                pass
 
             else:
                 # print unhandled case?
-                continue
+                pass
 
 
 
 if __name__ == '__main__':
     reviewers = load_reviewers("sp2025c1-users.csv")
-
-    #for r in reviewers:
-    #    reviewers[r].print_reviewer_info()
-
     process_log(reviewers, "sp2025c1-log.csv")
+
+    for r in reviewers:
+        reviewers[r].print_reviewer_info()
