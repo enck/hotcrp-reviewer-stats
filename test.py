@@ -89,10 +89,37 @@ class Reviewer:
 
         return False
 
+    def num_r1_discussion_comments(self):
+        count = 0
+        for time in self.comments:
+            if R1_DISCUSSION['start'] <= time and time <= R1_DISCUSSION['end']:
+                count += 1
+
+        return count
+
+    def num_r2_discussion_comments(self):
+        count = 0
+        for time in self.comments:
+            if R2_DISCUSSION['start'] <= time and time <= R2_DISCUSSION['end']:
+                count += 1
+
+        return count
+
+    def num_rebuttal_discussion_comments(self):
+        count = 0
+        for time in self.comments:
+            if REBUTTAL_DISCUSSION['start'] <= time and time <= REBUTTAL_DISCUSSION['end']:
+                count += 1
+
+        return count
+
     def print_reviewer_info(self):
-        # email, full_name, "paper, paper, ..."
+        # email, full_name, "paper, paper, ...", num_r1_comments, num_r2_comments, num_rebuttal_comments
         papers = ', '.join(self.paper_assignment())
-        print('{},{},"{}"'.format(self.email, self.full_name, papers))
+        r1_comments = self.num_r1_discussion_comments()
+        r2_comments = self.num_r2_discussion_comments()
+        rebuttal_comments = self.num_rebuttal_discussion_comments()
+        print('{},{},"{}",{},{},{}'.format(self.email, self.full_name, papers, r1_comments, r2_comments, rebuttal_comments))
 
     class Review:
         # Created either when review assigned / unassigned or when review is submitted
@@ -209,7 +236,7 @@ def process_log(reviewers, logfile):
 
             elif re.match(r"^Review \d+ edited draft: ", action):
                 # Not tracking review editing for now.
-                # - Is editing reviews after rebuttal useful?
+                # - This is before the review is submitted, so definitely ignore
                 pass
 
             elif re.match(r"^Review \d+ edited: ", action):
@@ -300,6 +327,7 @@ if __name__ == '__main__':
     reviewers = load_reviewers("sp2025c1-users.csv")
     process_log(reviewers, "sp2025c1-log.csv")
 
+    print("email, full_name, paper_assignment, num_r1_comments, num_r2_comments, num_rebuttal_comments")
     for r in reviewers:
         if reviewers[r].all_reviews_on_time() and reviewers[r].has_reviews():
             reviewers[r].print_reviewer_info()
