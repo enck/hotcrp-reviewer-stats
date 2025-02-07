@@ -8,12 +8,27 @@ from datetime import datetime
 R1_DEADLINE = datetime.strptime("2024-07-10 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
 R2_DEADLINE = datetime.strptime("2024-08-09 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
 
+R1_DISCUSSION = {
+        'start': datetime.strptime("2024-07-10 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z"),
+        'end': datetime.strptime("2024-07-19 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
+        }
+
+R2_DISCUSSION = {
+        'start': datetime.strptime("2024-07-10 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z"),
+        'end': datetime.strptime("2024-07-19 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
+        }
+
+REBUTTAL_DISCUSSION = {
+        'start': datetime.strptime("2024-07-16 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z"),
+        'end': datetime.strptime("2024-07-28 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
+        }
+
 class Reviewer:
     def __init__(self, first_name, last_name, email):
         self.full_name = '{} {}'.format(first_name, last_name)
         self.email = email
         self.reviews = {} # map of paper -> Review object
-        self.reviews = {} # map of paper -> Review object
+        self.comments = [] # array of timestamps when comments made
 
     def assign_r1_review(self, paper, timestamp):
         if paper in self.reviews:
@@ -65,7 +80,14 @@ class Reviewer:
 
         return on_time
 
+    def add_comment(self, timestamp):
+        self.comments.append(timestamp)
 
+    def has_comments(self):
+        if len(self.comments) > 0:
+            return True
+
+        return False
 
     def print_reviewer_info(self):
         # email, full_name, "paper, paper, ..."
@@ -179,26 +201,98 @@ def process_log(reviewers, logfile):
 
             elif re.match(r"^Review \d+ submitted: ", action):
                 # mark review as submitted
+                # Question: should we capture the number of words in the review?
                 if email in reviewers:
                     reviewers[email].review_submitted(paper, timestamp)
                 else:
-                    print("Warning: could not find {} for review submitted #{}".format(affected_email, paper), file=sys.stderr)
+                    print("Warning: could not find {} for review submitted #{}".format(email, paper), file=sys.stderr)
 
             elif re.match(r"^Review \d+ edited draft: ", action):
-                # mark review activity
+                # Not tracking review editing for now.
+                # - Is editing reviews after rebuttal useful?
                 pass
 
-            elif re.match(r"^Comment \d+ submitted", action):
+            elif re.match(r"^Review \d+ edited: ", action):
+                # Not tracking review editing for now.
+                # - Is editing reviews after rebuttal useful?
+                pass
+
+            elif re.match(r"^Review \d+ deleted", action):
+                # Not tracking review deletion for now.
+                pass
+
+            elif re.match(r"^Unsubmitted primary review", action):
+                pass
+
+            elif re.match(r"^Response", action):
+                # Responses are added by authors. No need to track
+                pass
+
+            elif re.match(r"^Comment \d+ (on submission )?submitted", action):
                 # mark comment activity
+                # - Note: It does not seem possible to extract if a commit is author-visible
+                if email in reviewers:
+                    reviewers[email].add_comment(timestamp)
+                #else:
+                    # Authors make comments, so don't worry about this case
+                    #print("Warning: could not find {} for comment added #{}".format(email, paper), file=sys.stderr)
+
+            elif re.match(r"^Comment \d+ (on submission )?edited draft", action):
+                # Not tracking comment editing for now.
                 pass
 
-            elif re.match(r"^Comment \d+ edited draft:", action):
-                # mark comment activity?
+            elif re.match(r"^Comment \d+ (on submission )?deleted", action):
+                # Not tracking comment deletion. Only looking for activity.
+                pass
+
+            elif re.match(r"^Assigned meta review", action):
+                pass
+
+            elif re.match(r"^Removed meta review", action):
+                pass
+
+            elif re.match(r"^Changed meta review", action):
+                pass
+
+            elif re.match(r"^Unsubmitted meta review", action):
+                pass
+
+            elif re.match(r"^Download", action):
+                pass
+
+            elif re.match(r"^Password", action):
+                pass
+
+            elif re.match(r"^Account", action):
+                pass
+
+            elif re.match(r"^Paper", action):
+                pass
+
+            elif re.match(r"^Sent mail", action):
+                pass
+
+            elif re.match(r"^Sending mail", action):
+                pass
+
+            elif re.match(r"^Tag", action):
+                pass
+
+            elif re.match(r"^Set decision", action):
+                pass
+
+            elif re.match(r"^Set shepherd", action):
+                pass
+
+            elif re.match(r"^Settings edited:", action):
+                pass
+
+            elif re.match(r"^(Set|Clear) lead", action):
                 pass
 
             else:
-                # print unhandled case?
-                pass
+                print("Warning: unknown action [{}]".format(action), file=sys.stderr)
+                #pass
 
 
 
