@@ -14,8 +14,8 @@ R1_DISCUSSION = {
         }
 
 R2_DISCUSSION = {
-        'start': datetime.strptime("2024-07-10 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z"),
-        'end': datetime.strptime("2024-07-19 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
+        'start': datetime.strptime("2024-08-11 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z"),
+        'end': datetime.strptime("2024-09-08 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
         }
 
 REBUTTAL_DISCUSSION = {
@@ -23,12 +23,15 @@ REBUTTAL_DISCUSSION = {
         'end': datetime.strptime("2024-07-28 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
         }
 
+PAPER_NOTIFICATION = datetime.strptime("2024-09-09 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
+
 class Reviewer:
     def __init__(self, first_name, last_name, email):
         self.full_name = '{} {}'.format(first_name, last_name)
         self.email = email
         self.reviews = {} # map of paper -> Review object
         self.comments = [] # array of timestamps when comments made
+        self.shepherd = [] # array of shepherded papers. WARNING: cannot handle shepherding changes
 
     def assign_r1_review(self, paper, timestamp):
         if paper in self.reviews:
@@ -80,6 +83,20 @@ class Reviewer:
 
         return on_time
 
+    def sum_days_late(self):
+        days = 0
+        for paper in self.reviews:
+            if not self.reviews[paper].submitted_on_time():
+                late = self.reviews[paper].time_late()
+                if late != None:
+                    days += late.days
+
+        return days
+
+
+    def completed_reviews(self):
+        return [paper for paper in self.reviews if self.reviews[paper].is_submitted() ]
+
     def add_comment(self, timestamp):
         self.comments.append(timestamp)
 
@@ -89,37 +106,41 @@ class Reviewer:
 
         return False
 
-    def num_r1_discussion_comments(self):
+    def set_shepherd(self, paper, timestamp):
+        # Ignoring timestamp for now. Cannot handle multiple set-shepherd events for the same paper
+        self.shepherd.append(paper)
+
+    def shepherd_assignments(self):
+        return self.shepherd
+
+    # start_ts or end_ts == None provides infinite bounds
+    def num_comments(self, start_ts=None, end_ts=None):
         count = 0
+
         for time in self.comments:
-            if R1_DISCUSSION['start'] <= time and time <= R1_DISCUSSION['end']:
+            if (start_ts == None or start_ts <= time) and (end_ts == None or time <= end_ts):
                 count += 1
 
         return count
 
-    def num_r2_discussion_comments(self):
-        count = 0
-        for time in self.comments:
-            if R2_DISCUSSION['start'] <= time and time <= R2_DISCUSSION['end']:
-                count += 1
-
-        return count
-
-    def num_rebuttal_discussion_comments(self):
-        count = 0
-        for time in self.comments:
-            if REBUTTAL_DISCUSSION['start'] <= time and time <= REBUTTAL_DISCUSSION['end']:
-                count += 1
-
-        return count
+    def print_reviewer_info_header():
+        print("full_name,email,num_completed_reviews,all_on_time,sum_days_late,num_comments,num_comments_r1_disc,num_comments_r2_disc,num_comments_rebuttal,num_shepherd,num_comments_after_notification")
 
     def print_reviewer_info(self):
-        # email, full_name, "paper, paper, ...", num_r1_comments, num_r2_comments, num_rebuttal_comments
-        papers = ', '.join(self.paper_assignment())
-        r1_comments = self.num_r1_discussion_comments()
-        r2_comments = self.num_r2_discussion_comments()
-        rebuttal_comments = self.num_rebuttal_discussion_comments()
-        print('{},{},"{}",{},{},{}'.format(self.email, self.full_name, papers, r1_comments, r2_comments, rebuttal_comments))
+        #papers = ', '.join(self.paper_assignment())
+        print('{},{},{},{},{},{},{},{},{},{},{}'.format(
+            self.full_name,
+            self.email,
+            len(self.completed_reviews()),
+            'Y' if self.all_reviews_on_time() else 'N',
+            self.sum_days_late(),
+            self.num_comments(),
+            self.num_comments(R1_DISCUSSION['start'], R1_DISCUSSION['end']),
+            self.num_comments(R2_DISCUSSION['start'], R2_DISCUSSION['end']),
+            self.num_comments(REBUTTAL_DISCUSSION['start'], REBUTTAL_DISCUSSION['end']),
+            len(self.shepherd_assignments()),
+            self.num_comments(PAPER_NOTIFICATION, None),
+            ))
 
     class Review:
         # Created either when review assigned / unassigned or when review is submitted
@@ -145,8 +166,16 @@ class Reviewer:
                 self.time_assigned = timestamp
                 self.time_due = deadline
 
+        def submitted_update(self, timestamp):
+            # Store the earliest time it the paper was submitted
+            if self.time_submitted == None or self.time_submitted > timestamp:
+                self.time_submitted = timestamp
+
         def is_assigned(self):
             return self.assigned
+
+        def is_submitted(self):
+            return (self.time_submitted != None)
 
         def submitted_on_time(self):
             # Reviews that were unassigned are always on-time
@@ -160,12 +189,23 @@ class Reviewer:
             if self.time_submitted <= self.time_due:
                 return True
 
+            # Don't penalize late review assignments
+            if self.time_assigned > self.time_due:
+                return True
+
             return False
 
-        def submitted_update(self, timestamp):
-            # Store the earliest time it the paper was submitted
-            if self.time_submitted == None or self.time_submitted > timestamp:
-                self.time_submitted = timestamp
+        # Returns None if not late
+        def time_late(self):
+            if self.submitted_on_time():
+                return None
+
+            # Never submitted
+            if self.time_submitted == None:
+                return PAPER_NOTIFICATION - self.time_due
+
+            return self.time_submitted - self.time_due
+
 
 def load_reviewers(filename):
     reviewers = {} # Map reviewer email to Reviewer object
@@ -248,6 +288,13 @@ def process_log(reviewers, logfile):
                 # Not tracking review deletion for now.
                 pass
 
+            elif re.match(r"^Set shepherd", action):
+                # Reviewer was added as a shepherd for a paper
+                if affected_email in reviewers:
+                    reviewers[affected_email].set_shepherd(paper, timestamp)
+                else:
+                    print("Warning: could not find {} for set shepherd on #{}".format(affected_email, paper), file=sys.stderr)
+
             elif re.match(r"^Unsubmitted primary review", action):
                 pass
 
@@ -308,9 +355,6 @@ def process_log(reviewers, logfile):
             elif re.match(r"^Set decision", action):
                 pass
 
-            elif re.match(r"^Set shepherd", action):
-                pass
-
             elif re.match(r"^Settings edited:", action):
                 pass
 
@@ -327,7 +371,7 @@ if __name__ == '__main__':
     reviewers = load_reviewers("sp2025c1-users.csv")
     process_log(reviewers, "sp2025c1-log.csv")
 
-    print("email, full_name, paper_assignment, num_r1_comments, num_r2_comments, num_rebuttal_comments")
+    Reviewer.print_reviewer_info_header()
+
     for r in reviewers:
-        if reviewers[r].all_reviews_on_time() and reviewers[r].has_reviews():
-            reviewers[r].print_reviewer_info()
+        reviewers[r].print_reviewer_info()
