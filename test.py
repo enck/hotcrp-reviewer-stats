@@ -124,13 +124,14 @@ class Reviewer:
         return count
 
     def print_reviewer_info_header():
-        print("full_name,email,num_completed_reviews,all_on_time,sum_days_late,num_comments,num_comments_r1_disc,num_comments_r2_disc,num_comments_rebuttal,num_shepherd,num_comments_after_notification")
+        print("full_name,email,num_assigned_reviews,num_completed_reviews,all_on_time,sum_days_late,num_comments,num_comments_r1_disc,num_comments_r2_disc,num_comments_rebuttal,num_shepherd,num_comments_after_notification")
 
     def print_reviewer_info(self):
         #papers = ', '.join(self.paper_assignment())
-        print('{},{},{},{},{},{},{},{},{},{},{}'.format(
+        print('{},{},{},{},{},{},{},{},{},{},{},{}'.format(
             self.full_name,
             self.email,
+            len(self.paper_assignment()),
             len(self.completed_reviews()),
             'Y' if self.all_reviews_on_time() else 'N',
             self.sum_days_late(),
