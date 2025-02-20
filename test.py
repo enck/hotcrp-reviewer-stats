@@ -3,6 +3,7 @@
 import csv
 import sys
 import re
+import tomllib
 from datetime import datetime
 
 R1_DEADLINE = datetime.strptime("2024-07-10 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
@@ -25,6 +26,9 @@ REBUTTAL_DISCUSSION = {
 
 PAPER_NOTIFICATION = datetime.strptime("2024-09-09 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
 
+# Used for both HotCRP logs and TOML config
+TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S %z"
+
 class Reviewer:
     def __init__(self, first_name, last_name, email):
         self.full_name = '{} {}'.format(first_name, last_name)
@@ -33,29 +37,17 @@ class Reviewer:
         self.comments = [] # array of timestamps when comments made
         self.shepherd = [] # array of shepherded papers. WARNING: cannot handle shepherding changes
 
-    def assign_r1_review(self, paper, timestamp):
+    def assign_review(self, paper, timestamp, round_deadline):
         if paper in self.reviews:
-            self.reviews[paper].assign_update(timestamp, R1_DEADLINE)
+            self.reviews[paper].assign_update(timestamp, round_deadline)
         else:
-            self.reviews[paper] = self.Review(paper, True, timestamp, R1_DEADLINE, None)
+            self.reviews[paper] = self.Review(paper, True, timestamp, round_deadline, None)
 
-    def unassign_r1_review(self, paper, timestamp):
+    def unassign_review(self, paper, timestamp, round_deadline):
         if paper in self.reviews:
-            self.reviews[paper].unassign_update(timestamp, R1_DEADLINE)
+            self.reviews[paper].unassign_update(timestamp, round_deadline)
         else:
-            self.reviews[paper] = self.Review(paper, False, timestamp, R1_DEADLINE, None)
-
-    def assign_r2_review(self, paper, timestamp):
-        if paper in self.reviews:
-            self.reviews[paper].assign_update(timestamp, R2_DEADLINE)
-        else:
-            self.reviews[paper] = self.Review(paper, True, timestamp, R2_DEADLINE, None)
-
-    def unassign_r2_review(self, paper, timestamp):
-        if paper in self.reviews:
-            self.reviews[paper].unassign_update(timestamp, R2_DEADLINE)
-        else:
-            self.reviews[paper] = self.Review(paper, False, timestamp, R2_DEADLINE, None)
+            self.reviews[paper] = self.Review(paper, False, timestamp, round_deadline, None)
 
     def paper_assignment(self):
         papers = [paper for paper in self.reviews if self.reviews[paper].is_assigned() ]
@@ -226,7 +218,7 @@ def load_reviewers(filename):
 
     return reviewers
 
-def process_log(reviewers, logfile):
+def process_log(reviewers, logfile, cycle_number, timestamps):
     with open(logfile, 'r', encoding="utf8") as f:
         log_csv = csv.reader(f)
         for row in log_csv:
@@ -237,33 +229,37 @@ def process_log(reviewers, logfile):
                 continue
 
             date, email, affected_email, paper, action = row[0], row[2], row[4], row[6], row[7]
-            timestamp = datetime.strptime(date, "%Y-%m-%d %H:%M:%S %z")
+            timestamp = datetime.strptime(date, TIMESTAMP_FORMAT)
 
             if action == "Assigned primary review (round R1)":
+                round_deadline = datetime.strptime(timestamps["round1_deadline"], TIMESTAMP_FORMAT)
                 # add the assigned review to reviewer
                 if affected_email in reviewers:
-                    reviewers[affected_email].assign_r1_review(paper, timestamp)
+                    reviewers[affected_email].assign_review(paper, timestamp, round_deadline)
                 else:
                     print("Warning: could not find {} for R1 assignment #{}".format(affected_email, paper), file=sys.stderr)
 
             elif action == "Assigned primary review (round R2)":
+                round_deadline = datetime.strptime(timestamps["round2_deadline"], TIMESTAMP_FORMAT)
                 # add the assigned review to reviewer
                 if affected_email in reviewers:
-                    reviewers[affected_email].assign_r2_review(paper, timestamp)
+                    reviewers[affected_email].assign_review(paper, timestamp, round_deadline)
                 else:
                     print("Warning: could not find {} for R2 assignment #{}".format(affected_email, paper), file=sys.stderr)
 
             elif action == "Removed primary review (round R1)":
+                round_deadline = datetime.strptime(timestamps["round1_deadline"], TIMESTAMP_FORMAT)
                 # remove the assigned review to reviewer
                 if affected_email in reviewers:
-                    reviewers[affected_email].unassign_r1_review(paper, timestamp)
+                    reviewers[affected_email].unassign_review(paper, timestamp, round_deadline)
                 else:
                     print("Warning: could not find {} for R1 removed assignment #{}".format(affected_email, paper), file=sys.stderr)
 
             elif action == "Removed primary review (round R2)":
+                round_deadline = datetime.strptime(timestamps["round2_deadline"], TIMESTAMP_FORMAT)
                 # remove the assigned review to reviewer
                 if affected_email in reviewers:
-                    reviewers[affected_email].unassign_r2_review(paper, timestamp)
+                    reviewers[affected_email].unassign_review(paper, timestamp, round_deadline)
                 else:
                     print("Warning: could not find {} for R2 removed assignment #{}".format(affected_email, paper), file=sys.stderr)
 
@@ -369,8 +365,18 @@ def process_log(reviewers, logfile):
 
 
 if __name__ == '__main__':
-    reviewers = load_reviewers("sp2025c1-users.csv")
-    process_log(reviewers, "sp2025c1-log.csv")
+
+    with open("config.toml", "rb") as f:
+        config = tomllib.load(f)
+
+    for cycle in config["cycles"]:
+        cycle_number = cycle["cycle_number"]
+        log_file = cycle["log_file"]
+        reviewers_file = cycle["reviewers_file"]
+        timestamps = cycle["timestamps"]
+
+        reviewers = load_reviewers(reviewers_file)
+        process_log(reviewers, log_file, cycle_number, timestamps)
 
     Reviewer.print_reviewer_info_header()
 
