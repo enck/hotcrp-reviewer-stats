@@ -29,6 +29,12 @@ PAPER_NOTIFICATION = datetime.strptime("2024-09-09 23:59:59 -0400", "%Y-%m-%d %H
 # Used for both HotCRP logs and TOML config
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S %z"
 
+# Note: the paper number is acutally "[cyclenum]-[papernum]" to handle multiple cycles
+# This is a helper function for sorting that
+def paper_sort_key(item):
+    first, second = map(int, item.split('-'))
+    return (first, second)
+
 class Reviewer:
     def __init__(self, first_name, last_name, email):
         self.full_name = '{} {}'.format(first_name, last_name)
@@ -51,7 +57,7 @@ class Reviewer:
 
     def paper_assignment(self):
         papers = [paper for paper in self.reviews if self.reviews[paper].is_assigned() ]
-        return sorted(papers, key=int)
+        return sorted(papers, key=paper_sort_key)
 
     def review_submitted(self, paper, timestamp):
         if paper in self.paper_assignment():
@@ -230,46 +236,48 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
 
             date, email, affected_email, paper, action = row[0], row[2], row[4], row[6], row[7]
             timestamp = datetime.strptime(date, TIMESTAMP_FORMAT)
+            cycle = cycle_number
+            cycle_paper = "{}-{}".format(cycle, paper)
 
             if action == "Assigned primary review (round R1)":
                 round_deadline = datetime.strptime(timestamps["round1_deadline"], TIMESTAMP_FORMAT)
                 # add the assigned review to reviewer
                 if affected_email in reviewers:
-                    reviewers[affected_email].assign_review(paper, timestamp, round_deadline)
+                    reviewers[affected_email].assign_review(cycle_paper, timestamp, round_deadline)
                 else:
-                    print("Warning: could not find {} for R1 assignment #{}".format(affected_email, paper), file=sys.stderr)
+                    print("Warning: could not find {} for Cycle {} R1 assignment #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
             elif action == "Assigned primary review (round R2)":
                 round_deadline = datetime.strptime(timestamps["round2_deadline"], TIMESTAMP_FORMAT)
                 # add the assigned review to reviewer
                 if affected_email in reviewers:
-                    reviewers[affected_email].assign_review(paper, timestamp, round_deadline)
+                    reviewers[affected_email].assign_review(cycle_paper, timestamp, round_deadline)
                 else:
-                    print("Warning: could not find {} for R2 assignment #{}".format(affected_email, paper), file=sys.stderr)
+                    print("Warning: could not find {} for Cycle {} R2 assignment #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
             elif action == "Removed primary review (round R1)":
                 round_deadline = datetime.strptime(timestamps["round1_deadline"], TIMESTAMP_FORMAT)
                 # remove the assigned review to reviewer
                 if affected_email in reviewers:
-                    reviewers[affected_email].unassign_review(paper, timestamp, round_deadline)
+                    reviewers[affected_email].unassign_review(cycle_paper, timestamp, round_deadline)
                 else:
-                    print("Warning: could not find {} for R1 removed assignment #{}".format(affected_email, paper), file=sys.stderr)
+                    print("Warning: could not find {} for Cycle {} R1 removed assignment #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
             elif action == "Removed primary review (round R2)":
                 round_deadline = datetime.strptime(timestamps["round2_deadline"], TIMESTAMP_FORMAT)
                 # remove the assigned review to reviewer
                 if affected_email in reviewers:
-                    reviewers[affected_email].unassign_review(paper, timestamp, round_deadline)
+                    reviewers[affected_email].unassign_review(cycle_paper, timestamp, round_deadline)
                 else:
-                    print("Warning: could not find {} for R2 removed assignment #{}".format(affected_email, paper), file=sys.stderr)
+                    print("Warning: could not find {} for Cycle {} R2 removed assignment #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
             elif re.match(r"^Review \d+ submitted: ", action):
                 # mark review as submitted
                 # Question: should we capture the number of words in the review?
                 if email in reviewers:
-                    reviewers[email].review_submitted(paper, timestamp)
+                    reviewers[email].review_submitted(cycle_paper, timestamp)
                 else:
-                    print("Warning: could not find {} for review submitted #{}".format(email, paper), file=sys.stderr)
+                    print("Warning: could not find {} for Cycle {} review submitted #{}".format(email, cycle, paper), file=sys.stderr)
 
             elif re.match(r"^Review \d+ edited draft: ", action):
                 # Not tracking review editing for now.
@@ -288,9 +296,9 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
             elif re.match(r"^Set shepherd", action):
                 # Reviewer was added as a shepherd for a paper
                 if affected_email in reviewers:
-                    reviewers[affected_email].set_shepherd(paper, timestamp)
+                    reviewers[affected_email].set_shepherd(cycle_paper, timestamp)
                 else:
-                    print("Warning: could not find {} for set shepherd on #{}".format(affected_email, paper), file=sys.stderr)
+                    print("Warning: could not find {} for Cycle {} set shepherd on #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
             elif re.match(r"^Unsubmitted primary review", action):
                 pass
@@ -359,7 +367,7 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
                 pass
 
             else:
-                print("Warning: unknown action [{}]".format(action), file=sys.stderr)
+                print("Warning: Cycle {} unknown action [{}]".format(cycle, action), file=sys.stderr)
                 #pass
 
 
@@ -369,15 +377,22 @@ if __name__ == '__main__':
     with open("config.toml", "rb") as f:
         config = tomllib.load(f)
 
+    # First, get the union of all reviewers in the cycles
+    reviewers = {}
+    for cycle in config["cycles"]:
+        reviewers_file = cycle["reviewers_file"]
+        cycle_reviewers = load_reviewers(reviewers_file)
+        reviewers.update(cycle_reviewers)
+
+    # Next, process the log files for each cycle
     for cycle in config["cycles"]:
         cycle_number = cycle["cycle_number"]
         log_file = cycle["log_file"]
-        reviewers_file = cycle["reviewers_file"]
         timestamps = cycle["timestamps"]
 
-        reviewers = load_reviewers(reviewers_file)
         process_log(reviewers, log_file, cycle_number, timestamps)
 
+    # Finally, print all of the information
     Reviewer.print_reviewer_info_header()
 
     for r in reviewers:
