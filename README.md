@@ -10,19 +10,19 @@ Two files from each HotCRP instance are needed:
 
 The script output is a `.csv` file with the following columns:
 
-|-|-|
-full_name|The reviewer's full name
-email|The reviewer's email address
-num_assigned_reviews|The total number of reviews assigned across all cycles
-num_completed_reviews|The number of reviews they completed across all cycles
-all_on_time|A Boolean if all of their reviews were completed by assigned deadlines
-sum_days_late|The Aggregate days late on reviews for each deadline, across all cycles. If one day late on two papers, the sum is 2 days.
-num_comments|The total number of comments across all cycles
-num_comments_r1_disc|The number of coments during the R1 discussion, across all cycles.
-num_comments_r2_disc|The number of comments during the R2 discussion, across all cycles.
-num_comments_rebuttal|The number of comments during the rebuttal, across all cycles
-num_shepherd|The number of papers shepherded by the reviewer, across all cycles
-num_comments_after_notification|The number of comments after the decision notification, across all cycles (shows shepherding activity)
+|---------|------------------------|
+|full_name|The reviewer's full name|
+|email|The reviewer's email address|
+|num_assigned_reviews|The total number of reviews assigned across all cycles|
+|num_completed_reviews|The number of reviews they completed across all cycles|
+|all_on_time|A Boolean if all of their reviews were completed by assigned deadlines|
+|sum_days_late|The Aggregate days late on reviews for each deadline, across all cycles. If one day late on two papers, the sum is 2 days.|
+|num_comments|The total number of comments across all cycles|
+|num_comments_r1_disc|The number of coments during the R1 discussion, across all cycles.|
+|num_comments_r2_disc|The number of comments during the R2 discussion, across all cycles.|
+|num_comments_rebuttal|The number of comments during the rebuttal, across all cycles|
+|num_shepherd|The number of papers shepherded by the reviewer, across all cycles|
+|num_comments_after_notification|The number of comments after the decision notification, across all cycles (shows shepherding activity)|
 
 ## Configuration
 
