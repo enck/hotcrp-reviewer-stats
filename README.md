@@ -4,7 +4,7 @@
 
 Two files from each HotCRP instance are needed:
 - [prefix]-users.csv: Users -> Program committee -> selected all, Download: "Names and emails"
-- prefix-log.csv: Action Log -> Download
+- [prefix]-log.csv: Action Log -> Download
 
 ## Output Format
 
