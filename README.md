@@ -2,11 +2,11 @@
 
 This is a script to process [HotCRP](https://github.com/kohler/hotcrp/) logs to identify the performance of program committee members.
 It was originally written for [IEEE S&P 2025](https://www.ieee-security.org/TC/SP2025/) by PC co-chair [William Enck](https://github.com/enck) with the goal of identifying the top five reviewers, which were given complementary registration for the symposium.
-However, the output `.csc` file can be also used to identify under-performing PC members that should not be invited to PCs in subsequent years.
+However, the output `.csv` file can be also used to identify under-performing PC members that should not be invited to PCs in subsequent years.
 Specifically, the `sum_days_late` column is the aggregate days late a reviewer is on submitting reviews.
 A low number of comments also indicates an inactive PC member.
 
-Note that the script is heavily influence by the structure of the IEEE S&P 2025 review structure.
+Note that the script is heavily influence by the structure of the IEEE S&P 2025 review process.
 Specifically, there were 
 (1) multiple submission cycles,
 (2) two rounds of review within each cycle,
@@ -15,10 +15,10 @@ Specifically, there were
 (5) only "primary reviewers" assigned to papers.
 
 There are several known limitations (mostly due to information available in logs):
-- There is no clear way to determine which comments were author-visible
-- If the shepherd is changed, there is double shepherd counting for that paper
+- There is no clear way to determine which comments were author-visible.
+- If the shepherd is changed, there is double shepherd counting for that paper.
 
-## Downloading Files
+## Downloading Input Files from HotCRP
 
 Two files from each HotCRP instance are needed:
 - [prefix]-users.csv: Users -> Program committee -> selected all, Download: "Names and emails"
@@ -95,7 +95,7 @@ camera_ready = "2025-04-18 23:59:59 -1100"
 ## Running the script
 
 The script print a csv file to `stdout`.
-There may be some warnings printed to `stderr`, so it good just redirect `stdout` to a file.
+There may be some warnings printed to `stderr`, so it good to just redirect `stdout` to a file.
 
 ```sh
 % ./reviewer-stats.py > stats.csv
