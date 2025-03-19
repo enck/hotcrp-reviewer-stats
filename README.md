@@ -1,5 +1,23 @@
 # hotcrp-reviewer-stats
 
+This is a script to process [HotCRP](https://github.com/kohler/hotcrp/) logs to identify the performance of program committee members.
+It was originally written for [IEEE S&P 2025](https://www.ieee-security.org/TC/SP2025/) by PC co-chair [William Enck](https://github.com/enck) with the goal of identifying the top five reviewers, which were given complementary registration for the symposium.
+However, the output `.csc` file can be also used to identify under-performing PC members that should not be invited to PCs in subsequent years.
+Specifically, the `sum_days_late` column is the aggregate days late a reviewer is on submitting reviews.
+A low number of comments also indicates an inactive PC member.
+
+Note that the script is heavily influence by the structure of the IEEE S&P 2025 review structure.
+Specifically, there were 
+(1) multiple submission cycles,
+(2) two rounds of review within each cycle,
+(3) an interactive rebuttal where reviewers were expected to interact with authors, 
+(4) all papers were shepherded to determine the final meta-review text, and
+(5) only "primary reviewers" assigned to papers.
+
+There are several known limitations (mostly due to information available in logs):
+- There is no clear way to determine which comments were author-visible
+- If the shepherd is changed, there is double shepherd counting for that paper
+
 ## Downloading Files
 
 Two files from each HotCRP instance are needed:
@@ -14,7 +32,7 @@ The script output is a `.csv` file with the following columns:
 - **email:** The reviewer's email address
 - **num_assigned_reviews:** The total number of reviews assigned across all cycles
 - **num_completed_reviews:** The number of reviews they completed across all cycles
-- **all_on_time:** A Boolean if all of their reviews were completed by assigned deadlines
+- **all_on_time:** A Boolean ('Y' / 'N') if all of their reviews were completed by assigned deadlines
 - **sum_days_late:** The Aggregate days late on reviews for each deadline, across all cycles. If one day late on two papers, the sum is 2 days.
 - **num_comments:** The total number of comments across all cycles
 - **num_comments_r1_disc:** The number of coments during the R1 discussion, across all cycles.

@@ -6,26 +6,6 @@ import re
 import tomllib
 from datetime import datetime
 
-R1_DEADLINE = datetime.strptime("2024-07-10 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
-R2_DEADLINE = datetime.strptime("2024-08-09 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
-
-R1_DISCUSSION = {
-        'start': datetime.strptime("2024-07-10 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z"),
-        'end': datetime.strptime("2024-07-19 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
-        }
-
-R2_DISCUSSION = {
-        'start': datetime.strptime("2024-08-11 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z"),
-        'end': datetime.strptime("2024-09-08 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
-        }
-
-REBUTTAL_DISCUSSION = {
-        'start': datetime.strptime("2024-07-16 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z"),
-        'end': datetime.strptime("2024-07-28 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
-        }
-
-PAPER_NOTIFICATION = datetime.strptime("2024-09-09 23:59:59 -0400", "%Y-%m-%d %H:%M:%S %z")
-
 # Used for both HotCRP logs and TOML config
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S %z"
 
@@ -43,28 +23,28 @@ class Reviewer:
         self.comments = [] # array of timestamps when comments made
         self.shepherd = [] # array of shepherded papers. WARNING: cannot handle shepherding changes
 
-    def assign_review(self, paper, timestamp, round_deadline):
+    def assign_review(self, paper, timestamp, round_deadline, cycle_end):
         if paper in self.reviews:
             self.reviews[paper].assign_update(timestamp, round_deadline)
         else:
-            self.reviews[paper] = self.Review(paper, True, timestamp, round_deadline, None)
+            self.reviews[paper] = self.Review(paper, True, timestamp, round_deadline, cycle_end, None)
 
-    def unassign_review(self, paper, timestamp, round_deadline):
+    def unassign_review(self, paper, timestamp, round_deadline, cycle_end):
         if paper in self.reviews:
             self.reviews[paper].unassign_update(timestamp, round_deadline)
         else:
-            self.reviews[paper] = self.Review(paper, False, timestamp, round_deadline, None)
+            self.reviews[paper] = self.Review(paper, False, timestamp, round_deadline, cycle_end, None)
 
     def paper_assignment(self):
         papers = [paper for paper in self.reviews if self.reviews[paper].is_assigned() ]
         return sorted(papers, key=paper_sort_key)
 
-    def review_submitted(self, paper, timestamp):
+    def review_submitted(self, paper, cycle_end, timestamp):
         if paper in self.paper_assignment():
             self.reviews[paper].submitted_update(timestamp)
         else:
             # We don't yet know when or if the paper was assigned
-            self.reviews[paper] = self.Review(paper, False, None, None, timestamp)
+            self.reviews[paper] = self.Review(paper, False, None, None, cycle_end, timestamp)
 
     def has_reviews(self):
         for paper in self.reviews:
@@ -124,7 +104,32 @@ class Reviewer:
     def print_reviewer_info_header():
         print("full_name,email,num_assigned_reviews,num_completed_reviews,all_on_time,sum_days_late,num_comments,num_comments_r1_disc,num_comments_r2_disc,num_comments_rebuttal,num_shepherd,num_comments_after_notification")
 
-    def print_reviewer_info(self):
+    def print_reviewer_info(self, config):
+        r1_disc_com = 0 # R1 discusson comments
+        r2_disc_com = 0 # R2 discussion comments
+        rb_disc_com = 0 # Rebuttal discussion comments
+        after_not_com = 0 # After notification comments (i.e., shepherding)
+
+        # Talley comments for each cycle
+        for cycle in config["cycles"]:
+            timestamps = cycle["timestamps"]
+                
+            r1_disc_start = datetime.strptime(timestamps["round1_discussion_start"], TIMESTAMP_FORMAT)
+            r1_disc_end = datetime.strptime(timestamps["round1_discussion_end"], TIMESTAMP_FORMAT)
+            r1_disc_com += self.num_comments(r1_disc_start, r1_disc_end)
+
+            r2_disc_start = datetime.strptime(timestamps["round2_discussion_start"], TIMESTAMP_FORMAT)
+            r2_disc_end = datetime.strptime(timestamps["round2_discussion_end"], TIMESTAMP_FORMAT)
+            r2_disc_com += self.num_comments(r2_disc_start, r2_disc_end)
+
+            rb_disc_start = datetime.strptime(timestamps["rebuttal_discussion_start"], TIMESTAMP_FORMAT)
+            rb_disc_end = datetime.strptime(timestamps["rebuttal_discussion_end"], TIMESTAMP_FORMAT)
+            rb_disc_com += self.num_comments(rb_disc_start, rb_disc_end)
+
+            paper_not = datetime.strptime(timestamps["acceptance"], TIMESTAMP_FORMAT)
+            cam_ready = datetime.strptime(timestamps["camera_ready"], TIMESTAMP_FORMAT)
+            after_not_com += self.num_comments(paper_not, cam_ready)
+
         #papers = ', '.join(self.paper_assignment())
         print('{},{},{},{},{},{},{},{},{},{},{},{}'.format(
             self.full_name,
@@ -134,21 +139,22 @@ class Reviewer:
             'Y' if self.all_reviews_on_time() else 'N',
             self.sum_days_late(),
             self.num_comments(),
-            self.num_comments(R1_DISCUSSION['start'], R1_DISCUSSION['end']),
-            self.num_comments(R2_DISCUSSION['start'], R2_DISCUSSION['end']),
-            self.num_comments(REBUTTAL_DISCUSSION['start'], REBUTTAL_DISCUSSION['end']),
+            r1_disc_com,
+            r2_disc_com,
+            rb_disc_com,
             len(self.shepherd_assignments()),
-            self.num_comments(PAPER_NOTIFICATION, None),
+            after_not_com,
             ))
 
     class Review:
         # Created either when review assigned / unassigned or when review is submitted
         # - Note: Logs are read in reverse order
-        def __init__(self, paper, assigned, time_assigned, time_due, time_submitted):
+        def __init__(self, paper, assigned, time_assigned, time_due, cycle_end, time_submitted):
             self.paper = paper
             self.assigned = assigned # true or false
             self.time_assigned = time_assigned
             self.time_due = time_due
+            self.cycle_end = cycle_end
             self.time_submitted = time_submitted
 
         def assign_update(self, timestamp, deadline):
@@ -194,14 +200,14 @@ class Reviewer:
 
             return False
 
-        # Returns None if not late
+        # Returns 0 if not late
         def time_late(self):
             if self.submitted_on_time():
                 return None
 
             # Never submitted
             if self.time_submitted == None:
-                return PAPER_NOTIFICATION - self.time_due
+                return self.cycle_end - self.time_due
 
             return self.time_submitted - self.time_due
 
@@ -238,12 +244,13 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
             timestamp = datetime.strptime(date, TIMESTAMP_FORMAT)
             cycle = cycle_number
             cycle_paper = "{}-{}".format(cycle, paper)
+            cycle_end = datetime.strptime(timestamps["acceptance"], TIMESTAMP_FORMAT)
 
             if action == "Assigned primary review (round R1)":
                 round_deadline = datetime.strptime(timestamps["round1_deadline"], TIMESTAMP_FORMAT)
                 # add the assigned review to reviewer
                 if affected_email in reviewers:
-                    reviewers[affected_email].assign_review(cycle_paper, timestamp, round_deadline)
+                    reviewers[affected_email].assign_review(cycle_paper, timestamp, round_deadline, cycle_end)
                 else:
                     print("Warning: could not find {} for Cycle {} R1 assignment #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
@@ -251,7 +258,7 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
                 round_deadline = datetime.strptime(timestamps["round2_deadline"], TIMESTAMP_FORMAT)
                 # add the assigned review to reviewer
                 if affected_email in reviewers:
-                    reviewers[affected_email].assign_review(cycle_paper, timestamp, round_deadline)
+                    reviewers[affected_email].assign_review(cycle_paper, timestamp, round_deadline, cycle_end)
                 else:
                     print("Warning: could not find {} for Cycle {} R2 assignment #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
@@ -259,7 +266,7 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
                 round_deadline = datetime.strptime(timestamps["round1_deadline"], TIMESTAMP_FORMAT)
                 # remove the assigned review to reviewer
                 if affected_email in reviewers:
-                    reviewers[affected_email].unassign_review(cycle_paper, timestamp, round_deadline)
+                    reviewers[affected_email].unassign_review(cycle_paper, timestamp, round_deadline, cycle_end)
                 else:
                     print("Warning: could not find {} for Cycle {} R1 removed assignment #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
@@ -267,7 +274,7 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
                 round_deadline = datetime.strptime(timestamps["round2_deadline"], TIMESTAMP_FORMAT)
                 # remove the assigned review to reviewer
                 if affected_email in reviewers:
-                    reviewers[affected_email].unassign_review(cycle_paper, timestamp, round_deadline)
+                    reviewers[affected_email].unassign_review(cycle_paper, timestamp, round_deadline, cycle_end)
                 else:
                     print("Warning: could not find {} for Cycle {} R2 removed assignment #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
@@ -275,7 +282,7 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
                 # mark review as submitted
                 # Question: should we capture the number of words in the review?
                 if email in reviewers:
-                    reviewers[email].review_submitted(cycle_paper, timestamp)
+                    reviewers[email].review_submitted(cycle_paper, cycle_end, timestamp)
                 else:
                     print("Warning: could not find {} for Cycle {} review submitted #{}".format(email, cycle, paper), file=sys.stderr)
 
@@ -396,4 +403,4 @@ if __name__ == '__main__':
     Reviewer.print_reviewer_info_header()
 
     for r in reviewers:
-        reviewers[r].print_reviewer_info()
+        reviewers[r].print_reviewer_info(config)
