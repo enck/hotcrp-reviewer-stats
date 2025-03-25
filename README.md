@@ -17,6 +17,7 @@ Specifically, there were
 There are several known limitations (mostly due to information available in logs):
 - There is no clear way to determine which comments were author-visible.
 - If the shepherd is changed, there is double shepherd counting for that paper.
+- If PC members change their email addresses between cycles, they will have multiple rows in the output. Manual aggregation in the ouput `.csv` file is required.
 
 ## Downloading Input Files from HotCRP
 
