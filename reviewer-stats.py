@@ -100,8 +100,8 @@ from datetime import datetime
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S %z"
 
 # Regular expression patterns for action matching
-REGEX_ASSIGN_R1 = r"^Review \d+ assigned: primary, round R1$|Assigned primary review (round R1)"
-REGEX_ASSIGN_R2 = r"^Review \d+ assigned: primary, round R2$|Assigned primary review (round R2)"
+REGEX_ASSIGN_R1 = r"^Review \d+ assigned: primary, round R1$|Assigned primary review \(round R1\)"
+REGEX_ASSIGN_R2 = r"^Review \d+ assigned: primary, round R2$|Assigned primary review \(round R2\)"
 REGEX_REMOVE_R1 = r"^Removed primary review \(round R1\)$|Review \d+ removed$"  
 REGEX_REMOVE_R2 = r"^Removed primary review \(round R2\)$|Review \d+ removed$" 
 REGEX_REVIEW_SUBMITTED = r"^Review \d+ edited, submitted: |^Review \d+ submitted: "
