@@ -99,6 +99,36 @@ from datetime import datetime
 # Used for both HotCRP logs and TOML config
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S %z"
 
+# Regular expression patterns for action matching
+REGEX_ASSIGN_R1 = r"^Review \d+ assigned: primary, round R1$|Assigned primary review \(round R1\)"
+REGEX_ASSIGN_R2 = r"^Review \d+ assigned: primary, round R2$|Assigned primary review \(round R2\)"
+REGEX_REMOVE_R1 = r"^Removed primary review \(round R1\)$|Review \d+ removed$"  
+REGEX_REMOVE_R2 = r"^Removed primary review \(round R2\)$|Review \d+ removed$" 
+REGEX_REVIEW_SUBMITTED = r"^Review \d+ edited, submitted: |^Review \d+ submitted: "
+REGEX_REVIEW_DRAFT = r"^Review \d+ .* draft: "  
+REGEX_REVIEW_EDITED = r"^Review \d+ edited, updated: |^Review \d+ edited: "
+REGEX_REVIEW_DELETED = r"^Review \d+ deleted"  
+REGEX_SET_SHEPHERD = r"^Set shepherd"  
+REGEX_UNSUBMIT_REVIEW = r"^Unsubmitted primary review"  
+REGEX_RESPONSE = r"^Response"  
+REGEX_COMMENT_SUBMIT = r"^Comment \d+ (on submission )?submitted"  
+REGEX_COMMENT_EDIT = r"^Comment \d+ (on submission )?edited draft"  
+REGEX_COMMENT_DELETE = r"^Comment \d+ (on submission )?deleted"  
+REGEX_ASSIGN_META = r"^Assigned meta review"  
+REGEX_REMOVE_META = r"^Removed meta review"  
+REGEX_CHANGE_META = r"^Changed meta review"  
+REGEX_UNSUBMIT_META = r"^Unsubmitted meta review"  
+REGEX_DOWNLOAD = r"^Download"  
+REGEX_PASSWORD = r"^Password"  
+REGEX_ACCOUNT = r"^Account"  
+REGEX_PAPER = r"^Paper"  
+REGEX_SENT_MAIL = r"^Sent mail"  
+REGEX_SENDING_MAIL = r"^Sending mail"  
+REGEX_TAG = r"^Tag"  
+REGEX_SET_DECISION = r"^Set decision"  
+REGEX_SETTINGS_EDITED = r"^Settings edited:"  
+REGEX_LEAD_CHANGE = r"^(Set|Clear) lead"  
+
 # Note: the paper number is acutally "[cyclenum]-[papernum]" to handle multiple cycles
 # This is a helper function for sorting that
 def paper_sort_key(item):
@@ -336,7 +366,7 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
             cycle_paper = "{}-{}".format(cycle, paper)
             cycle_end = datetime.strptime(timestamps["acceptance"], TIMESTAMP_FORMAT)
 
-            if action == "Assigned primary review (round R1)":
+            if re.match(REGEX_ASSIGN_R1, action):
                 round_deadline = datetime.strptime(timestamps["round1_deadline"], TIMESTAMP_FORMAT)
                 # add the assigned review to reviewer
                 if affected_email in reviewers:
@@ -344,7 +374,7 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
                 else:
                     print("Warning: could not find {} for Cycle {} R1 assignment #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
-            elif action == "Assigned primary review (round R2)":
+            elif re.match(REGEX_ASSIGN_R2, action):
                 round_deadline = datetime.strptime(timestamps["round2_deadline"], TIMESTAMP_FORMAT)
                 # add the assigned review to reviewer
                 if affected_email in reviewers:
@@ -352,7 +382,7 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
                 else:
                     print("Warning: could not find {} for Cycle {} R2 assignment #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
-            elif action == "Removed primary review (round R1)":
+            elif re.match(REGEX_REMOVE_R1, action):
                 round_deadline = datetime.strptime(timestamps["round1_deadline"], TIMESTAMP_FORMAT)
                 # remove the assigned review to reviewer
                 if affected_email in reviewers:
@@ -360,7 +390,7 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
                 else:
                     print("Warning: could not find {} for Cycle {} R1 removed assignment #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
-            elif action == "Removed primary review (round R2)":
+            elif re.match(REGEX_REMOVE_R2, action):
                 round_deadline = datetime.strptime(timestamps["round2_deadline"], TIMESTAMP_FORMAT)
                 # remove the assigned review to reviewer
                 if affected_email in reviewers:
@@ -368,7 +398,7 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
                 else:
                     print("Warning: could not find {} for Cycle {} R2 removed assignment #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
-            elif re.match(r"^Review \d+ submitted: ", action):
+            elif re.match(REGEX_REVIEW_SUBMITTED, action):
                 # mark review as submitted
                 # Question: should we capture the number of words in the review?
                 if email in reviewers:
@@ -376,35 +406,35 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
                 else:
                     print("Warning: could not find {} for Cycle {} review submitted #{}".format(email, cycle, paper), file=sys.stderr)
 
-            elif re.match(r"^Review \d+ edited draft: ", action):
+            elif re.match(REGEX_REVIEW_DRAFT, action):
                 # Not tracking review editing for now.
                 # - This is before the review is submitted, so definitely ignore
                 pass
 
-            elif re.match(r"^Review \d+ edited: ", action):
+            elif re.match(REGEX_REVIEW_EDITED, action):
                 # Not tracking review editing for now.
                 # - Is editing reviews after rebuttal useful?
                 pass
 
-            elif re.match(r"^Review \d+ deleted", action):
+            elif re.match(REGEX_REVIEW_DELETED, action):
                 # Not tracking review deletion for now.
                 pass
 
-            elif re.match(r"^Set shepherd", action):
+            elif re.match(REGEX_SET_SHEPHERD, action):
                 # Reviewer was added as a shepherd for a paper
                 if affected_email in reviewers:
                     reviewers[affected_email].set_shepherd(cycle_paper, timestamp)
                 else:
                     print("Warning: could not find {} for Cycle {} set shepherd on #{}".format(affected_email, cycle, paper), file=sys.stderr)
 
-            elif re.match(r"^Unsubmitted primary review", action):
+            elif re.match(REGEX_UNSUBMIT_REVIEW, action):
                 pass
 
-            elif re.match(r"^Response", action):
+            elif re.match(REGEX_RESPONSE, action):
                 # Responses are added by authors. No need to track
                 pass
 
-            elif re.match(r"^Comment \d+ (on submission )?submitted", action):
+            elif re.match(REGEX_COMMENT_SUBMIT, action):
                 # mark comment activity
                 # - Note: It does not seem possible to extract if a commit is author-visible
                 if email in reviewers:
@@ -413,54 +443,54 @@ def process_log(reviewers, logfile, cycle_number, timestamps):
                     # Authors make comments, so don't worry about this case
                     #print("Warning: could not find {} for comment added #{}".format(email, paper), file=sys.stderr)
 
-            elif re.match(r"^Comment \d+ (on submission )?edited draft", action):
+            elif re.match(REGEX_COMMENT_EDIT, action):
                 # Not tracking comment editing for now.
                 pass
 
-            elif re.match(r"^Comment \d+ (on submission )?deleted", action):
+            elif re.match(REGEX_COMMENT_DELETE, action):
                 # Not tracking comment deletion. Only looking for activity.
                 pass
 
-            elif re.match(r"^Assigned meta review", action):
+            elif re.match(REGEX_ASSIGN_META, action):
                 pass
 
-            elif re.match(r"^Removed meta review", action):
+            elif re.match(REGEX_REMOVE_META, action):
                 pass
 
-            elif re.match(r"^Changed meta review", action):
+            elif re.match(REGEX_CHANGE_META, action):
                 pass
 
-            elif re.match(r"^Unsubmitted meta review", action):
+            elif re.match(REGEX_UNSUBMIT_META, action):
                 pass
 
-            elif re.match(r"^Download", action):
+            elif re.match(REGEX_DOWNLOAD, action):
                 pass
 
-            elif re.match(r"^Password", action):
+            elif re.match(REGEX_PASSWORD, action):
                 pass
 
-            elif re.match(r"^Account", action):
+            elif re.match(REGEX_ACCOUNT, action):
                 pass
 
-            elif re.match(r"^Paper", action):
+            elif re.match(REGEX_PAPER, action):
                 pass
 
-            elif re.match(r"^Sent mail", action):
+            elif re.match(REGEX_SENT_MAIL, action):
                 pass
 
-            elif re.match(r"^Sending mail", action):
+            elif re.match(REGEX_SENDING_MAIL, action):
                 pass
 
-            elif re.match(r"^Tag", action):
+            elif re.match(REGEX_TAG, action):
                 pass
 
-            elif re.match(r"^Set decision", action):
+            elif re.match(REGEX_SET_DECISION, action):
                 pass
 
-            elif re.match(r"^Settings edited:", action):
+            elif re.match(REGEX_SETTINGS_EDITED, action):
                 pass
 
-            elif re.match(r"^(Set|Clear) lead", action):
+            elif re.match(REGEX_LEAD_CHANGE, action):
                 pass
 
             else:
